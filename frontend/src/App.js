@@ -6,7 +6,7 @@ import Nav from './Nav';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CustomerDashboard from './pages/CustomerDashboard';
-import AgentDashboard from './pages/AgentDashboard';
+import AgentDashboard from './pages/AgentDashboard.jsx';
 import TicketDetail from './pages/TicketDetail';
 
 function Home() {

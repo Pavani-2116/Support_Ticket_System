@@ -5,7 +5,7 @@ import AppLayout from "./components/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
-import AgentDashboard from "./pages/AgentDashboard";
+import AgentDashboard from "./pages/AgentDashboard.jsx";
 import CreateTicketPage from "./pages/CreateTicketPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import RoleHome from "./pages/RoleHome";
