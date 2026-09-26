@@ -1,51 +1,121 @@
-const request = require('supertest');
-const app = require('../server');
+const request = require("supertest");
+const bcrypt = require("bcrypt");
+const app = require("../app");
+const db = require("../config/db");
 
-let customerToken, agentToken, ticketId;
+describe("Tickets", () => {
+    let customerToken;
+    let agentToken;
+    let ticketId;
+    let agentUserId;
 
-beforeAll(async () => {
-  const c = await request(app).post('/api/auth/login').send({ email: 'customer@example.com', password: 'password123' });
-  customerToken = c.body.token;
-  const a = await request(app).post('/api/auth/login').send({ email: 'agent@example.com', password: 'password123' });
-  agentToken = a.body.token;
-});
+    const customerEmail = `ticketcustomer.${Date.now()}@example.com`;
+    const agentEmail = `ticketagent.${Date.now()}@example.com`;
+    const password = "Password123!";
 
-describe('Tickets', () => {
-  it('rejects unauthenticated access to /api/tickets', async () => {
-    const res = await request(app).get('/api/tickets');
-    expect(res.statusCode).toBe(401);
-  });
+    beforeAll(async () => {
+        const passwordHash = await bcrypt.hash(password, 10);
 
-  it('allows a customer to create a ticket', async () => {
-    const res = await request(app)
-      .post('/api/tickets')
-      .set('Authorization', `Bearer ${customerToken}`)
-      .send({ subject: 'Test ticket', description: 'Something is broken', priority: 'low' });
-    expect(res.statusCode).toBe(201);
-    ticketId = res.body.id;
-  });
+        const [customerResult] = await db.execute(
+            `INSERT INTO users (name, email, password_hash, role)
+             VALUES (?, ?, ?, 'customer')`,
+            ["Ticket Test Customer", customerEmail, passwordHash]
+        );
 
-  it('allows an agent to update ticket status', async () => {
-    const res = await request(app)
-      .put(`/api/tickets/${ticketId}`)
-      .set('Authorization', `Bearer ${agentToken}`)
-      .send({ status: 'in_progress' });
-    expect(res.statusCode).toBe(200);
-    expect(res.body.status).toBe('in_progress');
-  });
+        const [agentResult] = await db.execute(
+            `INSERT INTO users (name, email, password_hash, role)
+             VALUES (?, ?, ?, 'agent')`,
+            ["Ticket Test Agent", agentEmail, passwordHash]
+        );
 
-  it('forbids a customer from updating ticket status (agent-only route)', async () => {
-    const res = await request(app)
-      .put(`/api/tickets/${ticketId}`)
-      .set('Authorization', `Bearer ${customerToken}`)
-      .send({ status: 'closed' });
-    expect(res.statusCode).toBe(403);
-  });
+        agentUserId = agentResult.insertId;
 
-  it('returns 404 for a non-existent ticket', async () => {
-    const res = await request(app)
-      .get('/api/tickets/999999')
-      .set('Authorization', `Bearer ${agentToken}`);
-    expect(res.statusCode).toBe(404);
-  });
+        const customerLogin = await request(app)
+            .post("/api/auth/login")
+            .send({
+                email: customerEmail,
+                password
+            });
+
+        customerToken = customerLogin.body.token;
+
+        const agentLogin = await request(app)
+            .post("/api/auth/login")
+            .send({
+                email: agentEmail,
+                password
+            });
+
+        agentToken = agentLogin.body.token;
+    });
+
+    afterAll(async () => {
+        if (ticketId) {
+            await db.execute(
+                "DELETE FROM tickets WHERE id = ?",
+                [ticketId]
+            );
+        }
+
+        await db.execute(
+            "DELETE FROM users WHERE email IN (?, ?)",
+            [customerEmail, agentEmail]
+        );
+
+        await db.end();
+    });
+
+    test("rejects unauthenticated access to /api/tickets", async () => {
+        const res = await request(app)
+            .get("/api/tickets");
+
+        expect(res.statusCode).toBe(401);
+    });
+
+    test("allows a customer to create a ticket", async () => {
+        const res = await request(app)
+            .post("/api/tickets")
+            .set("Authorization", `Bearer ${customerToken}`)
+            .send({
+                subject: "Test ticket",
+                description: "Something is broken",
+                priority: "low"
+            });
+
+        expect(res.statusCode).toBe(201);
+        expect(res.body.ticketId).toBeDefined();
+
+        ticketId = res.body.ticketId;
+    });
+
+    test("allows an agent to update ticket status", async () => {
+        const res = await request(app)
+            .put(`/api/tickets/${ticketId}`)
+            .set("Authorization", `Bearer ${agentToken}`)
+            .send({
+                status: "in_progress",
+                assigned_to: agentUserId
+            });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    test("forbids a customer from updating ticket status", async () => {
+        const res = await request(app)
+            .put(`/api/tickets/${ticketId}`)
+            .set("Authorization", `Bearer ${customerToken}`)
+            .send({
+                status: "closed"
+            });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    test("returns 404 for a non-existent ticket", async () => {
+        const res = await request(app)
+            .get("/api/tickets/999999")
+            .set("Authorization", `Bearer ${agentToken}`);
+
+        expect(res.statusCode).toBe(404);
+    });
 });
