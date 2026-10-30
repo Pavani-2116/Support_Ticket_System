@@ -4,9 +4,8 @@ Web portal for customers to raise support tickets and for agents to triage, assi
 
 ## Live URLs
 
-- Frontend: _add after deployment_
-- Backend API: _add after deployment_
-- GitHub: _add after the repository is published_
+- Frontend: 
+- GitHub: https://github.com/Pavani-2116/Support_Ticket_System
 
 ## Tech stack
 
